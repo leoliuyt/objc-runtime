@@ -6157,6 +6157,9 @@ _class_createInstanceFromZone(Class cls, size_t extraBytes, void *zone,
     bool hasCxxDtor = cls->hasCxxDtor();
     bool fast = cls->canAllocNonpointer();
 
+    const char *name = class_getName(cls);
+    printf("leoliu===%s\n",name);
+    
     size_t size = cls->instanceSize(extraBytes);
     if (outAllocatedSize) *outAllocatedSize = size;
 
