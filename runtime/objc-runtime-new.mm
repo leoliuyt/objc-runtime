@@ -626,6 +626,9 @@ attachCategories(Class cls, category_list *cats, bool flush_caches)
 
     bool isMeta = cls->isMetaClass();
 
+    /* 二位数组
+     [[method_t,method_t,method_t,...],[method_t],[method_t,method_t,method_t,...]]
+     */
     // fixme rearrange to remove these intermediate allocations
     method_list_t **mlists = (method_list_t **)
         malloc(cats->count * sizeof(*mlists));
@@ -638,32 +641,44 @@ attachCategories(Class cls, category_list *cats, bool flush_caches)
     int mcount = 0;
     int propcount = 0;
     int protocount = 0;
-    int i = cats->count;
+    int i = cats->count;//宿主分类的总数
     bool fromBundle = NO;
-    while (i--) {
+    while (i--) {//这里是倒序遍历，最先访问最后编译的分类
+        //获取一个分类
         auto& entry = cats->list[i];
 
+        //获取该分类的方法列表
         method_list_t *mlist = entry.cat->methodsForMeta(isMeta);
         if (mlist) {
+            //最后编译的分类最先添加到分类数组中
             mlists[mcount++] = mlist;
             fromBundle |= entry.hi->isBundle();
         }
 
+        //属性列表的添加规则同方法列表的添加规则
         property_list_t *proplist = 
             entry.cat->propertiesForMeta(isMeta, entry.hi);
         if (proplist) {
             proplists[propcount++] = proplist;
         }
 
+        //协议列表的添加规则同方法列表的添加规则
         protocol_list_t *protolist = entry.cat->protocols;
         if (protolist) {
             protolists[protocount++] = protolist;
         }
     }
 
+    //获取宿主类当中的rw数据，其中包含宿主类的方法列表信息
     auto rw = cls->data();
 
+    //主要针对 分类中有关于内存管理相关方法情况下的一些特殊处理
     prepareMethodLists(cls, mlists, mcount, NO, fromBundle);
+    /*
+     rw代表类
+     methods代表类的方法列表
+     attachlists 方法的含义是 将含有mcount个元素的mlists拼接到rw的methods上
+     */
     rw->methods.attachLists(mlists, mcount);
     free(mlists);
     if (flush_caches  &&  mcount > 0) flushCaches(cls);
@@ -763,15 +778,20 @@ static void remethodizeClass(Class cls)
 
     runtimeLock.assertWriting();
 
+    /*
+     只分析分类当中实例方法添加的逻辑
+     因此这里我们假设 isMeta = NO
+     */
     isMeta = cls->isMetaClass();
 
     // Re-methodizing: check for more categories
+    //获取cls中未完成整合的所有分类
     if ((cats = unattachedCategoriesForClass(cls, false/*not realizing*/))) {
         if (PrintConnecting) {
             _objc_inform("CLASS: attaching categories to class '%s' %s", 
                          cls->nameForLogging(), isMeta ? "(meta)" : "");
         }
-        
+        //将分类cats拼接到cls上
         attachCategories(cls, cats, true /*flush caches*/);        
         free(cats);
     }
