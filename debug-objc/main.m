@@ -7,6 +7,9 @@
 //
 
 #import <Foundation/Foundation.h>
+//#import "NSObject+LeoliuTest.h"
+//#import "NSObject+LeoliuTest1.h"
+
 int main(int argc, const char * argv[]) {
     @autoreleasepool {
         // insert code here...

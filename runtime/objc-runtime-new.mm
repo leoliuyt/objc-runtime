@@ -643,12 +643,20 @@ attachCategories(Class cls, category_list *cats, bool flush_caches)
     int protocount = 0;
     int i = cats->count;//宿主分类的总数
     bool fromBundle = NO;
+    //当在Build Phases中的顺序是[LeoLiuTest LeoliuTest1]时，编译顺序为[LeoliuTest1 LeoliuTest] 加载顺序为 [LeoLiuTest LeoliuTest1]
     while (i--) {//这里是倒序遍历，最先访问最后编译的分类
         //获取一个分类
         auto& entry = cats->list[i];
 
         //获取该分类的方法列表
         method_list_t *mlist = entry.cat->methodsForMeta(isMeta);
+        
+//        =============自己添加打印信息=======
+        if (strcmp(class_getName(cls), "NSObject") == 0 ) {
+            printf("leoliu===分类名称:%s==%s\n",class_getName(cls),entry.cat->name);
+            printf("======================\n");
+        }
+//        ===========================
         if (mlist) {
             //最后编译的分类最先添加到分类数组中
             mlists[mcount++] = mlist;
@@ -2579,6 +2587,7 @@ void _read_images(header_info **hList, uint32_t hCount, int totalClasses, int un
 
         for (i = 0; i < count; i++) {
             category_t *cat = catlist[i];
+            printf("cat->name=====%s\n",cat->name);
             Class cls = remapClass(cat->cls);
 
             if (!cls) {
@@ -6178,7 +6187,7 @@ _class_createInstanceFromZone(Class cls, size_t extraBytes, void *zone,
     bool fast = cls->canAllocNonpointer();
 
     const char *name = class_getName(cls);
-    printf("leoliu===%s\n",name);
+//    printf("leoliu===%s\n",name);
     
     size_t size = cls->instanceSize(extraBytes);
     if (outAllocatedSize) *outAllocatedSize = size;
