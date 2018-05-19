@@ -219,6 +219,7 @@ enum {
     OBJC_ASSOCIATION_GETTER_AUTORELEASE = (2 << 8)
 }; 
 
+//根据key获取一个对象的关联对象
 id _object_get_associative_reference(id object, void *key) {
     id value = nil;
     uintptr_t policy = OBJC_ASSOCIATION_ASSIGN;
@@ -325,6 +326,7 @@ void _object_set_associative_reference(id object, void *key, id value, uintptr_t
     if (old_association.hasValue()) ReleaseValue()(old_association);
 }
 
+//移除一个对象的所有关联对象
 void _object_remove_assocations(id object) {
     vector< ObjcAssociation,ObjcAllocator<ObjcAssociation> > elements;
     {

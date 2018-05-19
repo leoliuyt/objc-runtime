@@ -683,7 +683,7 @@ struct magic_t {
 #   undef M1
 };
     
-
+// 以栈为节点的双向链表
 class AutoreleasePoolPage 
 {
     // EMPTY_POOL_PLACEHOLDER is stored in TLS when exactly one pool is 
