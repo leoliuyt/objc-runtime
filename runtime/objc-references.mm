@@ -275,15 +275,41 @@ struct ReleaseValue {
  ObjectAssociationMap 是一个 C++ 中的 map ，维护了从 key 到 ObjcAssociation 的映射，即关联记录；
  ObjcAssociation 是一个 C++ 的类，表示一个具体的关联结构，主要包括两个实例变量，_policy 表示关联策略，_value 表示关联对象。
  每一个对象地址对应一个 ObjectAssociationMap 对象，而一个 ObjectAssociationMap 对象保存着这个对象的若干个关联记录。
+ // AssociationsHashMap
+ //     ObjectAssociationMap
+ //         ObjcAssociation
+ {
+    "0x1122334455":{//object1
+        "@selector(text)":{//@property(retain)NSString *text
+            "value":"Hello",
+            "policy":"retain"
+        },
+        "@selector(title)":{//@property(copy)NSString *title
+            "value":"a object",
+            "policy":"copy"
+        }
+    },
+    "0x3428193212":{//object2
+        "@selector(backgroudColor)":{
+        "value":"0xff8205",
+        "policy":"retain"
+        }
+    }
+ }
  */
 void _object_set_associative_reference(id object, void *key, id value, uintptr_t policy) {
     // retain the new value (if any) outside the lock.
     ObjcAssociation old_association(0, nil);
-    //根据传入的value 获取new_value
+    //根据传入的value和策略 获取一个new_value，例如对value进行retain或copy
     id new_value = value ? acquireValue(value, policy) : nil;
     {
+        // 关联对象管理类，C++实现的一个类
         AssociationsManager manager;
+        // 获取其维护的一个Hashmap,我们可以理解为是一个字典
+        // 是一个全局容器
         AssociationsHashMap &associations(manager.associations());
+        
+        // 对object指针按位取反作为HashMap中的key
         disguised_ptr_t disguised_object = DISGUISE(object);
         if (new_value) {
             // break any existing association.
@@ -303,8 +329,11 @@ void _object_set_associative_reference(id object, void *key, id value, uintptr_t
                 // create the new association (first time).
                 //为该对象创建一个ObjectAssociationMap对象，并存入新的关联对象，设置标志位
                 ObjectAssociationMap *refs = new ObjectAssociationMap;
+                //将ObjectAssociationMap 存入AssociationsHashMap中
                 associations[disguised_object] = refs;
+                //将新的关联对象存入ObjectAssociationMap中
                 (*refs)[key] = ObjcAssociation(policy, new_value);
+                //设置标志位 ：设置object有了对象
                 object->setHasAssociatedObjects();
             }
         } else {
