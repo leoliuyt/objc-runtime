@@ -48,7 +48,14 @@ public:
     void set(cache_key_t newKey, IMP newImp);
 };
 
-
+/*
+ - 用于快速查找方法执行函数
+ - 是可增量扩展的哈希表结构
+ - 是局部性原理的最佳应用（一般调用方法是调用频次最高的放入缓存中）
+ [bucket_t, bucket_t,bucket_t,bucket_t,……]
+ ---------  --------
+  key:IMP    key:IMP
+ */
 struct cache_t {
     struct bucket_t *_buckets;
     mask_t _mask;
@@ -203,10 +210,35 @@ struct entsize_list_tt {
     };
 };
 
-
+/*
+ 函数的四要素
+    - 函数名称
+    - 函数返回值
+    - 函数参数
+    - 函数体
+ */
 struct method_t {
+    //方法名
     SEL name;
+    
+    //方法返回值、参数
+    /*
+     types : 返回值|参数1|参数2|参数3|……
+     其中第一和第二个参数是固定的
+     
+     - (void)methodA{
+     
+     }
+     
+     types: v@:
+     
+        v     @     :
+       ---   ---   ---
+     void    id    SEL
+     */
     const char *types;
+    
+    //方法指针
     IMP imp;
 
     struct SortBySELAddress :
@@ -535,7 +567,10 @@ struct class_ro_t {
 
     const uint8_t * ivarLayout;
     
+    //类名
     const char * name;
+    
+    //一下都是一维数组
     method_list_t * baseMethodList;
     protocol_list_t * baseProtocols;
     const ivar_list_t * ivars;
@@ -832,6 +867,7 @@ struct class_rw_t {
 
     const class_ro_t *ro;
 
+    // 都是二维数组
     method_array_t methods;
     property_array_t properties;
     protocol_array_t protocols;
@@ -868,7 +904,9 @@ struct class_rw_t {
     }
 };
 
-
+/*
+ class_rw_t
+ */
 struct class_data_bits_t {
 
     // Values are the FAST_ flags above.
@@ -1091,7 +1129,10 @@ public:
 struct objc_class : objc_object {
     // Class ISA;
     Class superclass;
+    // 方法缓存
     cache_t cache;             // formerly cache pointer and vtable
+    
+    //变量、属性、方法等都包含在bits中
     class_data_bits_t bits;    // class_rw_t * plus custom rr/alloc flags
 
     class_rw_t *data() { 

@@ -64,7 +64,12 @@ namespace {
 #   error bad config
 #endif
 
-
+/*
+ 共用体 isa_t
+ isa 指针
+    - 指针型isa ：isa的值代表Class的地址
+    - 非指针型isa ： isa值的一部分代表Class的地址
+ */
 union isa_t 
 {
     isa_t() { }
@@ -183,6 +188,7 @@ public:
     // initClassIsa(): class objects
     // initProtocolIsa(): protocol objects
     // initIsa(): other objects
+    // 关于isa操作相关
     void initIsa(Class cls /*nonpointer=false*/);
     void initClassIsa(Class cls /*nonpointer=maybe*/);
     void initProtocolIsa(Class cls /*nonpointer=maybe*/);
@@ -198,14 +204,17 @@ public:
     bool isExtTaggedPointer();
     bool isClass();
 
+    // 关联对象相关
     // object may have associated objects?
     bool hasAssociatedObjects();
     void setHasAssociatedObjects();
-
+    
+    // 弱引用相关
     // object may be weakly referenced?
     bool isWeaklyReferenced();
     void setWeaklyReferenced_nolock();
 
+    // 内存管理相关
     // object may have -.cxx_destruct implementation?
     bool hasCxxDtor();
 
