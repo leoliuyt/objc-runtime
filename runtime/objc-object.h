@@ -414,6 +414,7 @@ objc_object::clearDeallocating()
 inline void
 objc_object::rootDealloc()
 {
+    //TaggedPointer都不用做释放操作
     if (isTaggedPointer()) return;  // fixme necessary?
 
     if (fastpath(isa.nonpointer  &&  
@@ -469,6 +470,7 @@ objc_object::rootTryRetain()
 ALWAYS_INLINE id 
 objc_object::rootRetain(bool tryRetain, bool handleOverflow)
 {
+    //TaggedPointer 直接返回对象本身 不做任何其他操作
     if (isTaggedPointer()) return (id)this;
 
     bool sideTableLocked = false;
@@ -919,6 +921,7 @@ objc_object::release()
 inline bool 
 objc_object::rootRelease()
 {
+    //如果是TaggedPointer直接返回
     if (isTaggedPointer()) return false;
     return sidetable_release(true);
 }

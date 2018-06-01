@@ -6328,6 +6328,7 @@ void *objc_destructInstance(id obj)
 
         // This order is important.
         if (cxx) object_cxxDestruct(obj);
+        //dealloc时系统自动将关联对象释放
         if (assoc) _object_remove_assocations(obj);
         obj->clearDeallocating();
     }

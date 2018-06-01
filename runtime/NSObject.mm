@@ -141,9 +141,9 @@ enum HaveOld { DontHaveOld = false, DoHaveOld = true };
 enum HaveNew { DontHaveNew = false, DoHaveNew = true };
 
 struct SideTable {
-    spinlock_t slock;
-    RefcountMap refcnts;
-    weak_table_t weak_table;
+    spinlock_t slock;//自旋锁
+    RefcountMap refcnts;//引用计数表
+    weak_table_t weak_table;//弱引用表
 
     SideTable() {
         memset(&weak_table, 0, sizeof(weak_table));
@@ -220,7 +220,7 @@ static void SideTableInit() {
     new (SideTableBuf) StripedMap<SideTable>();
 }
 
-static StripedMap<SideTable>& SideTables() {
+static StripedMap<SideTable>& SideTables() {//哈希表，可根据对象指针找到对应的SideTable
     return *reinterpret_cast<StripedMap<SideTable>*>(SideTableBuf);
 }
 
@@ -454,6 +454,8 @@ objc_storeWeakOrNil(id *location, id newObj)
  * @param location Address of __weak ptr. 
  * @param newObj Object ptr. 
  */
+
+//弱引用指针被添加到弱引用表的流程入口
 id
 objc_initWeak(id *location, id newObj)
 {
@@ -462,6 +464,7 @@ objc_initWeak(id *location, id newObj)
         return nil;
     }
 
+    //C++模板
     return storeWeak<DontHaveOld, DoHaveNew, DoCrashIfDeallocating>
         (location, (objc_object*)newObj);
 }
@@ -705,9 +708,9 @@ class AutoreleasePoolPage
 
     magic_t const magic;
     id *next;
-    pthread_t const thread;
-    AutoreleasePoolPage * const parent;
-    AutoreleasePoolPage *child;
+    pthread_t const thread;//与线程一一对应
+    AutoreleasePoolPage * const parent;//父节点
+    AutoreleasePoolPage *child;//子节点
     uint32_t const depth;
     uint32_t hiwat;
 
@@ -942,6 +945,7 @@ class AutoreleasePoolPage
         return EMPTY_POOL_PLACEHOLDER;
     }
 
+    //hotpage可以理解为当前正在使用的page
     static inline AutoreleasePoolPage *hotPage() 
     {
         AutoreleasePoolPage *result = (AutoreleasePoolPage *)
@@ -972,7 +976,7 @@ class AutoreleasePoolPage
 
     static inline id *autoreleaseFast(id obj)
     {
-        AutoreleasePoolPage *page = hotPage();
+        AutoreleasePoolPage *page = hotPage();//
         if (page && !page->full()) {
             return page->add(obj);
         } else if (page) {
@@ -1468,7 +1472,7 @@ objc_object::sidetable_retain()
     table.lock();
     size_t& refcntStorage = table.refcnts[this];
     if (! (refcntStorage & SIDE_TABLE_RC_PINNED)) {
-        refcntStorage += SIDE_TABLE_RC_ONE;
+        refcntStorage += SIDE_TABLE_RC_ONE;//引用计数加一
     }
     table.unlock();
 
@@ -1510,14 +1514,21 @@ objc_object::sidetable_tryRetain()
 uintptr_t
 objc_object::sidetable_retainCount()
 {
+    //根据对象指针从SideTables获取SideTable
     SideTable& table = SideTables()[this];
-
+    
+    //这里初始值为1
     size_t refcnt_result = 1;
     
+    //对表加锁后操作
     table.lock();
+    //根据对象，从表中的引用计数表中查找到该对象对应的应用计数
     RefcountMap::iterator it = table.refcnts.find(this);
-    if (it != table.refcnts.end()) {
+    if (it != table.refcnts.end()) {//从引用计数表中查找到了this对应的it
         // this is valid for SIDE_TABLE_RC_PINNED too
+        //size_t 的前两位不是引用计数的值，要做对齐运算
+        //获取引用计数值，并在此基础上 +1 并将结果返回。
+        //这也就是为什么之前说引用计数表存储的值为实际引用计数减一。
         refcnt_result += it->second >> SIDE_TABLE_RC_SHIFT;
     }
     table.unlock();
@@ -1586,24 +1597,28 @@ objc_object::sidetable_release(bool performDealloc)
 #if SUPPORT_NONPOINTER_ISA
     assert(!isa.nonpointer);
 #endif
+    //获取SideTable
     SideTable& table = SideTables()[this];
 
     bool do_dealloc = false;
 
     table.lock();
     RefcountMap::iterator it = table.refcnts.find(this);
-    if (it == table.refcnts.end()) {
+    if (it == table.refcnts.end()) {//为找到这个对象对应的引用计数
         do_dealloc = true;
-        table.refcnts[this] = SIDE_TABLE_DEALLOCATING;
+        table.refcnts[this] = SIDE_TABLE_DEALLOCATING;//标记为正在释放
     } else if (it->second < SIDE_TABLE_DEALLOCATING) {
+        //两种情况 第一种值为0 第二种 值为1
+        //值为0说明 引用计数为0 没有弱引用
+        //值为1说明 引用计数为0 且有弱引用
         // SIDE_TABLE_WEAKLY_REFERENCED may be set. Don't change it.
         do_dealloc = true;
-        it->second |= SIDE_TABLE_DEALLOCATING;
-    } else if (! (it->second & SIDE_TABLE_RC_PINNED)) {
-        it->second -= SIDE_TABLE_RC_ONE;
+        it->second |= SIDE_TABLE_DEALLOCATING;//标记为“正在析构”
+    } else if (! (it->second & SIDE_TABLE_RC_PINNED)) {//只有引用计数大于0的时候，才可执行减一操作
+        it->second -= SIDE_TABLE_RC_ONE;//引用计数减一
     }
     table.unlock();
-    if (do_dealloc  &&  performDealloc) {
+    if (do_dealloc  &&  performDealloc) {//引用计数为0 发送SEL_dealloc消息
         ((void(*)(objc_object *, SEL))objc_msgSend)(this, SEL_dealloc);
     }
     return do_dealloc;
@@ -1622,8 +1637,10 @@ objc_object::sidetable_clearDeallocating()
     RefcountMap::iterator it = table.refcnts.find(this);
     if (it != table.refcnts.end()) {
         if (it->second & SIDE_TABLE_WEAKLY_REFERENCED) {
+            //将指向该对象的弱引用指针置为nil
             weak_clear_no_lock(&table.weak_table, (id)this);
         }
+        //擦除与该对象关联的引用计数表
         table.refcnts.erase(it);
     }
     table.unlock();

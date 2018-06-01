@@ -360,6 +360,7 @@ _objc_makeTaggedPointer(objc_tag_index_t tag, uintptr_t value)
     }
 }
 
+//如果该对象是TaggedPointer,苹果会直接将其指针值作为引用计数返回；
 static inline bool 
 _objc_isTaggedPointer(const void * _Nullable ptr) 
 {

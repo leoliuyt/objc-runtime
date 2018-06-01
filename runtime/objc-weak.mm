@@ -314,6 +314,7 @@ weak_entry_for_referent(weak_table_t *weak_table, objc_object *referent)
 
     if (!weak_entries) return nil;
 
+    //原对象指针hash算法
     size_t begin = hash_pointer(referent) & weak_table->mask;
     size_t index = begin;
     size_t hash_displacement = 0;
@@ -387,8 +388,9 @@ weak_unregister_no_lock(weak_table_t *weak_table, id referent_id,
  * @param referent The object pointed to by the weak reference.
  * @param referrer The weak pointer address.
  */
+
 id 
-weak_register_no_lock(weak_table_t *weak_table, id referent_id, 
+weak_register_no_lock(weak_table_t *weak_table, id referent_id,
                       id *referrer_id, bool crashIfDeallocating)
 {
     objc_object *referent = (objc_object *)referent_id;
@@ -426,12 +428,15 @@ weak_register_no_lock(weak_table_t *weak_table, id referent_id,
 
     // now remember it and where it is being stored
     weak_entry_t *entry;
+    //根据原对象从弱引用表中找到对应的弱引用数组结构
     if ((entry = weak_entry_for_referent(weak_table, referent))) {
         append_referrer(entry, referrer);
     } 
     else {
+        //创建weak_entry_t
         weak_entry_t new_entry(referent, referrer);
         weak_grow_maybe(weak_table);
+         //将weak_entry_t插入到弱引用表中
         weak_entry_insert(weak_table, &new_entry);
     }
 
@@ -463,17 +468,18 @@ weak_clear_no_lock(weak_table_t *weak_table, id referent_id)
 {
     objc_object *referent = (objc_object *)referent_id;
 
+    //取出refernt对应的弱引用数组
     weak_entry_t *entry = weak_entry_for_referent(weak_table, referent);
-    if (entry == nil) {
+    if (entry == nil) {//没有弱引用对象 直接返回
         /// XXX shouldn't happen, but does with mismatched CF/objc
         //printf("XXX no entry for clear deallocating %p\n", referent);
         return;
     }
 
     // zero out references
-    weak_referrer_t *referrers;
-    size_t count;
-    
+    weak_referrer_t *referrers;//当前对象对应的所有弱引用指针数组
+    size_t count;//取到的弱引用指针数
+        
     if (entry->out_of_line()) {
         referrers = entry->referrers;
         count = TABLE_SIZE(entry);
@@ -487,7 +493,7 @@ weak_clear_no_lock(weak_table_t *weak_table, id referent_id)
         objc_object **referrer = referrers[i];
         if (referrer) {
             if (*referrer == referent) {
-                *referrer = nil;
+                *referrer = nil;//弱引用指针置为nil
             }
             else if (*referrer) {
                 _objc_inform("__weak variable at %p holds %p instead of %p. "
